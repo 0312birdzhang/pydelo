@@ -19,10 +19,10 @@ def authorize(func):
         apikey = request.args.get("apikey")
         sign = request.cookies.get('sign')
         if users.is_login(sign, apikey):
-            g.user = users.first(apikey=apikey) or users.get(sessions.first(session=sign).id)
-            return func(*args, **kargs)
-        else:
-            return redirect(url_for('login', next=request.path))
+            g.user = users.first(apikey=apikey) or users.get(sessions.first(session=sign).user_id)
+            if g.user is not None:
+                return func(*args, **kargs)
+        return redirect(url_for('login', next=request.path))
     return decorator
 
 #login_manager = LoginManager()

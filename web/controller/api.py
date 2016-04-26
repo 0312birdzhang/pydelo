@@ -6,10 +6,13 @@ import json
 import time
 import random
 import string
+import sys
+if sys.version_info > (3,):
+    string.letters = string.ascii_letters
 from hashlib import md5
 
 from web.utils.log import Logger
-logger = Logger("WEBHOOK")
+logger = Logger("API")
 
 from web import app
 from web.services.users import users
@@ -21,33 +24,6 @@ from .login import authorize
 
 from flask import request, jsonify, g
 
-
-#@app.route('/api/deploy/push_events', methods=["POST"])
-#@authorize
-#def push_events():
-#    project = Project(user_id=g.user.get_id())
-#    args = request.args.to_dict()
-#    data = request.json
-#    logger.debug(args)
-#    logger.debug(data)
-#    # 只针对dev分支进行deploy
-#    if data["ref"] == "refs/heads/dev" and data["total_commits_count"] > 0:
-#        try:
-#            project.start_deploy_by_branch_version(
-#                project_id=args["project_id"],
-#                host_id=args["host_id"],
-#                branch=data["ref"].split("/", 2)[-1],
-#                version=data["after"][:7])
-#        except Error as err:
-#            return jsonify({"rc": err.rc, "err": err.msg}), 406
-#        except Exception as err:
-#            logger.error(traceback.format_exc())
-#            return "ERROR",500
-#        else:
-#            return jsonify({"rc": 0}), 200
-#    else:
-#        return jsonify({"rc": 1}), 204
-
 @app.errorhandler(Error)
 def error(err):
     return jsonify(dict(rc=err.rc, msg=err.msg))
@@ -57,7 +33,7 @@ def error(err):
 @authorize
 def api_update_accounts():
     password = request.form.get("password")
-    password = md5(password).hexdigest().upper()
+    password = md5(password.encode("utf-8")).hexdigest().upper()
     users.update(g.user, password=password)
     return jsonify(dict(rc=0))
 
@@ -83,64 +59,20 @@ def api_deploys():
             data=dict(deploys=deploys.find(offset, limit, order_by="updated_at", desc=True, user_id=g.user.id),
                       count=deploys.count(user_id=g.user.id))))
 
-# @app.route("/api/alldeploys", methods=["GET"])
-# @authorize
-# def api_alldeploys():
-#     offset = request.args.get("offset", None, type=int)
-#     limit = request.args.get("limit", None, type=int)
-#     return jsonify(dict(rc=0,
-#         data=dict(deploys=deploys.all(offset, limit, order_by="updated_at", desc=True),
-#                   count=deploys.count())))
-
-@app.route("/api/projects", methods=["GET"])
-@authorize
-def api_projects():
-    offset = request.args.get("offset", None, type=int)
-    limit = request.args.get("limit", None, type=int)
-    data = users.get_user_projects(g.user, offset=offset, limit=limit, order_by="name")
-    return jsonify(dict(rc=0, data=data))
-
-@app.route("/api/projects", methods=["POST"])
-@authorize
-def api_create_project():
-    projects.create(**request.form.to_dict())
-    return jsonify(dict(rc=0))
-
-@app.route("/api/projects/<int:id>", methods=["GET"])
-@authorize
-def api_get_project_by_id(id):
-    return jsonify(dict(rc=0, data=projects.get(id)))
-
-@app.route("/api/projects/<int:id>", methods=["PUT"])
-@authorize
-def api_update_project_by_id(id):
-    projects.update(projects.get(id), **request.form.to_dict())
-    return jsonify(dict(rc=0))
-
-@app.route("/api/projects/<int:id>/branches", methods=["GET"])
-@authorize
-def api_project_branches(id):
-    projects.git_clone(id)
-    return jsonify(dict(rc=0, data=projects.git_branch(id)))
-
-@app.route("/api/projects/<int:id>/branches/<branch>/commits", methods=["GET"])
-@authorize
-def api_project_branch_commits(id, branch):
-    projects.git_clone(id)
-    return jsonify(dict(rc=0, data=projects.git_log(id, branch)))
-
 @app.route("/api/deploys", methods=["POST"])
 @authorize
 def api_post_deploy():
     project_id = request.args.get("project_id")
     host_id = request.args.get("host_id")
-    branch = request.form.get("branch")
-    commit = request.form.get("commit")
+    mode = request.form.get("mode", type=int)
+    branch = request.form.get("branch") if mode == 0 else ""
+    tag = request.form.get("tag")
+    commit = request.form.get("commit") if mode == 0 else tag
     deploy = deploys.create(
         user_id=g.user.id,
         project_id=project_id,
         host_id=host_id,
-        mode=0,
+        mode=mode,
         status=2,
         branch=branch,
         version=commit,
@@ -186,6 +118,58 @@ def update_deploy_by_id(id):
 def get_deploy_progress_by_id(id):
     deploy = deploys.get(id)
     return jsonify(dict(rc=0, data=deploy))
+
+# @app.route("/api/alldeploys", methods=["GET"])
+# @authorize
+# def api_alldeploys():
+#     offset = request.args.get("offset", None, type=int)
+#     limit = request.args.get("limit", None, type=int)
+#     return jsonify(dict(rc=0,
+#         data=dict(deploys=deploys.all(offset, limit, order_by="updated_at", desc=True),
+#                   count=deploys.count())))
+
+@app.route("/api/projects", methods=["GET"])
+@authorize
+def api_projects():
+    offset = request.args.get("offset", None, type=int)
+    limit = request.args.get("limit", None, type=int)
+    data = users.get_user_projects(g.user, offset=offset, limit=limit, order_by="name")
+    return jsonify(dict(rc=0, data=data))
+
+@app.route("/api/projects", methods=["POST"])
+@authorize
+def api_create_project():
+    projects.create(**request.form.to_dict())
+    return jsonify(dict(rc=0))
+
+@app.route("/api/projects/<int:id>", methods=["GET"])
+@authorize
+def api_get_project_by_id(id):
+    return jsonify(dict(rc=0, data=projects.get(id)))
+
+@app.route("/api/projects/<int:id>", methods=["PUT"])
+@authorize
+def api_update_project_by_id(id):
+    projects.update(projects.get(id), **request.form.to_dict())
+    return jsonify(dict(rc=0))
+
+@app.route("/api/projects/<int:id>/branches", methods=["GET"])
+@authorize
+def api_project_branches(id):
+    projects.git_clone(id)
+    return jsonify(dict(rc=0, data=projects.git_branch(id)))
+
+@app.route("/api/projects/<int:id>/tags", methods=["GET"])
+@authorize
+def api_project_tags(id):
+    projects.git_clone(id)
+    return jsonify(dict(rc=0, data=projects.git_tag(id)))
+
+@app.route("/api/projects/<int:id>/branches/<branch>/commits", methods=["GET"])
+@authorize
+def api_project_branch_commits(id, branch):
+    projects.git_clone(id)
+    return jsonify(dict(rc=0, data=projects.git_log(id, branch)))
 
 # 获取所有hosts
 @app.route("/api/hosts", methods=["GET"])

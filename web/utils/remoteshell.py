@@ -22,7 +22,7 @@ class RemoteShell(object):
         self.ssh = paramiko.SSHClient()
         self.ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         self.ssh.connect(self.host, self.port, self.user, self.passwd, timeout=10)
-
+        #self.ssh.connect(hostname=self.host,port=self.port,username=self.user,key_filename="",timeout=20)
     def exec_command(self, shell):
         logger.debug("remote shell: %s" % shell)
         # stdin, stdout, stderr = self.ssh.exec_command(shell)
