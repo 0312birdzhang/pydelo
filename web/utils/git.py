@@ -1,4 +1,4 @@
-#!/usr/local/bin/python
+#!/usr/bin/env python
 # -*- coding:utf-8 -*-
 __author__ = 'Rocky Peng'
 
@@ -50,6 +50,6 @@ class Git(object):
     def checkout(self, branch, version):
         logger.debug("checkout:")
         LocalShell.check_call(
-            "cd {0} && git checkout -B {1} -t origin/{1} && git pull -q origin {1} && git reset --hard {2}".format(
+            "cd {0} && git checkout -b {1} -t origin/{1} && git pull -q origin {1} && git reset --hard {2}".format(
                 self.dest, branch, version),
             shell=True)
